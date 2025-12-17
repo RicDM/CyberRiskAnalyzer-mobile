@@ -1,5 +1,9 @@
+import { useOAuth } from '@clerk/clerk-expo';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -9,6 +13,9 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useWarmUpBrowser } from '../hooks/useWarmUpBrowser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface LoginProps {
     onLogin: (email: string) => void;
@@ -17,10 +24,52 @@ interface LoginProps {
 export function Login({ onLogin }: LoginProps) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    useWarmUpBrowser();
+
+    const { startOAuthFlow: startGoogleOAuth } = useOAuth({ strategy: 'oauth_google' });
+    const { startOAuthFlow: startGithubOAuth } = useOAuth({ strategy: 'oauth_github' });
 
     const handleSubmit = () => {
         if (email && password) {
             onLogin(email);
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        try {
+            setIsLoading(true);
+            const { createdSessionId, setActive } = await startGoogleOAuth();
+
+            if (createdSessionId) {
+                setActive!({ session: createdSessionId });
+                const emailFromAuth = 'user@google.com';
+                onLogin(emailFromAuth);
+            }
+        } catch (err: any) {
+            console.error('OAuth error:', err);
+            Alert.alert('Erro', 'Falha ao autenticar com Google. Tente novamente.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGithubSignIn = async () => {
+        try {
+            setIsLoading(true);
+            const { createdSessionId, setActive } = await startGithubOAuth();
+
+            if (createdSessionId) {
+                setActive!({ session: createdSessionId });
+                const emailFromAuth = 'user@github.com';
+                onLogin(emailFromAuth);
+            }
+        } catch (err: any) {
+            console.error('OAuth error:', err);
+            Alert.alert('Erro', 'Falha ao autenticar com GitHub. Tente novamente.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -68,12 +117,44 @@ export function Login({ onLogin }: LoginProps) {
                             />
                         </View>
 
-                        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-                            <Text style={styles.buttonText}>Entrar</Text>
+                        <TouchableOpacity
+                            style={styles.button}
+                            onPress={handleSubmit}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.buttonText}>Entrar</Text>
+                            )}
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.forgotPassword}>
                             <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.divider}>
+                            <View style={styles.dividerLine} />
+                            <Text style={styles.dividerText}>OU</Text>
+                            <View style={styles.dividerLine} />
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.socialButton}
+                            onPress={handleGoogleSignIn}
+                            disabled={isLoading}
+                        >
+                            <Text style={styles.socialButtonIcon}>🔍</Text>
+                            <Text style={styles.socialButtonText}>Continuar com Google</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.socialButton]}
+                            onPress={handleGithubSignIn}
+                            disabled={isLoading}
+                        >
+                            <Text style={styles.socialButtonIcon}>⚡</Text>
+                            <Text style={styles.socialButtonText}>Continuar com GitHub</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -172,5 +253,45 @@ const styles = StyleSheet.create({
     forgotPasswordText: {
         color: '#2563EB',
         fontSize: 14,
+    },
+    divider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 24,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
+    },
+    dividerText: {
+        marginHorizontal: 16,
+        color: '#6B7280',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    socialButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'white',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 12,
+    },
+    githubButton: {
+        backgroundColor: '#24292F',
+        borderColor: '#24292F',
+    },
+    socialButtonIcon: {
+        fontSize: 20,
+        marginRight: 12,
+    },
+    socialButtonText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#374151',
     },
 });
